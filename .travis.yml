@@ -1,0 +1,14 @@
+language: python
+python:
+- '2.7'
+- '3.3'
+- pypy
+deploy:
+  provider: pypi
+  user: xiachufang
+  password:
+    secure: j61JUNgrIPHDpqkME82/IhCR/lu8L8wSzmvFvm4OKniUsXqrjx81XrYzCGRZC/VXydsTvxr/YVSsHGFY8oRelEzdRC3l5groDyo6Hx/lGV88vLmKOxDWd0vDcN/aQsMPSBLxjp5/6kiDDxuHBZQNQ3vV0SOjgWDyv1SC1bkZAPE8vbYq0gZNG44Es8gVF8QnNR8ZZMHzl5oO/lxwfDUGnbdLhPi/PPdedHCKYlVuL0es0wA1/amMu2Nc5QSPUnmTUTet+gqJBdWy5wGK24x3xLRf4gqR+PZmVgro6WAuxPbDpRfS3HMugMyHIFkaggf4VTLVPYBa2vJYo9oVtKVbeIx3g8IZFnFCOblYksLXohotloRR3gUlZxqvwvi0flTOeCHmpuTgurmHz4NB7dDCmNM8YRngKJPoQFf9Rbx42K0wCCuon9c1Qz0JbL+QVj1dzDrAs9jXmKi5tMxPNrgIh0bpVkLHB9jP6ecyop2DXuJ1zQjWjJJq5/U3jo+ppdZ5M5NOdPRLaMr3mXVedJxDYMP5H1MaQsyO354wnKXbqhCOjOuazmRkcWIVb/QRUMIww0NmwnrXMz20q+jV/+BhzAsybNYSxihAk4BW3zcF3TtNJzLAKxh9YlhDRTDWGvL9i9SShJdM2XMVdIgmNGPQoR8uUOLFttSuTcDOAIOvDSM=
+  on:
+    tags: true
+    distributions: sdist bdist_wheel
+    repo: xiachufang/dispatcher
