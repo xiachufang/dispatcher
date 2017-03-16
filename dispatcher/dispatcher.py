@@ -2,8 +2,10 @@ import sys
 import threading
 import weakref
 import inspect
+from celery.execute import send_task
 
 from .weakref_backports import WeakMethod
+from . import const
 
 
 def func_accepts_kwargs(func):
@@ -36,13 +38,22 @@ class Signal(object):
         receivers
             { receiverkey (id) : weakref(receiver) }
     """
-    def __init__(self, providing_args=None, use_caching=False):
+    ALL_SIGNALS = dict()
+
+    def __init__(self, name, providing_args=None, use_caching=False):
         """
         Create a new signal.
 
         providing_args
             A list of the arguments this signal can pass along in a send() call.
         """
+        self.name = name
+        _signal = self.get_by_name(name)
+        if _signal:
+            raise Exception('already registered signal "%s"' % name)
+
+        self.ALL_SIGNALS[name] = self
+
         self.receivers = []
         if providing_args is None:
             providing_args = []
@@ -56,6 +67,10 @@ class Signal(object):
         # .disconnect() is called and populated on send().
         self.sender_receivers_cache = weakref.WeakKeyDictionary() if use_caching else {}
         self._dead_receivers = False
+
+    @classmethod
+    def get_by_name(cls, name):
+        return cls.ALL_SIGNALS.get(name)
 
     def connect(self, receiver, sender=None, weak=True, dispatch_uid=None):
         """
@@ -157,6 +172,9 @@ class Signal(object):
 
     def has_listeners(self, sender=None):
         return bool(self._live_receivers(sender))
+
+    def send_async(self, sender, **named):
+        send_task(const.TASK_NAME, args=(self.name, sender), kwargs=named)
 
     def send(self, sender, **named):
         """

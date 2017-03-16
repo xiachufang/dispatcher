@@ -8,8 +8,11 @@ setup(
     packages=[
         'dispatcher',
     ],
-    version='1.0.3',
+    version='1.0.4',
     url='https://github.com/xiachufang/dispatcher',
+    install_requires=[
+        'celery',
+    ],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Operating System :: OS Independent",
