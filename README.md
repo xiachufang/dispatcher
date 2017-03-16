@@ -1,4 +1,4 @@
-# dispatcher
+# dispatcher[![Build Status](https://travis-ci.org/xiachufang/dispatcher.svg?branch=master)](https://travis-ci.org/xiachufang/dispatcher)
 Dispatcher 是从 Django 源码 signal 中分离出来的。 Receiver 处理函数是在 celery 异步任务中执行。Celery 被异常终止，receiver 跑异常等情况都会自动重试，直到达到最大重试次数。
 
 所有的 receiver 处理函数必须定义在以 `receiver.py` 结尾的文件中。
