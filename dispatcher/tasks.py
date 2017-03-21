@@ -8,6 +8,10 @@ def set_task_name(name):
     const.TASK_NAME = name
 
 
+def get_task_name():
+    return const.TASK_NAME
+
+
 def register_tasks(logger):
 
     class MyTask(Task):
