@@ -173,8 +173,9 @@ class Signal(object):
     def has_listeners(self, sender=None):
         return bool(self._live_receivers(sender))
 
-    def send_async(self, sender, **named):
-        send_task(const.TASK_NAME, args=(self.name, sender), kwargs=named, countdown=10)
+    def send_async(self, sender, options=None, **named):
+        options = options or {}
+        send_task(const.TASK_NAME, args=(self.name, sender), kwargs=named, **options)
 
     def send(self, sender, **named):
         """
