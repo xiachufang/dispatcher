@@ -27,6 +27,6 @@ def register_tasks(logger):
             signal = Signal.get_by_name(signal_name)
             signal.send(sender, **kwargs)
         except Exception as exc:
-            logger.warn('Retry task {}[{}: {} from {}] kwargs: {}'.format(self.request.retries, self.name, signal_name, sender, json.dumps(kwargs)))
+            logger.exception('Retry task {}[{}: {} from {}] kwargs: {}'.format(self.request.retries, self.name, signal_name, sender, json.dumps(kwargs)))
             countdown = retry_countdown[min(self.request.retries, len(retry_countdown) - 1)]
             self.retry(exc=exc, countdown=countdown, max_retries=20)
