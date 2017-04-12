@@ -18,12 +18,7 @@ def register_tasks(logger):
     class MyTask(Task):
         def on_failure(self, exc, task_id, args, kwargs, einfo):
             if logger:
-                logger.warn('Task {}[{}] args: {}, kwargs: {}'.format(self.name, task_id, json.dumps(args), json.dumps(kwargs)), exc_info=einfo)
                 logger.error('Task {}[{}] args: {}, kwargs: {}'.format(self.name, task_id, json.dumps(args), json.dumps(kwargs)))
-
-        def on_retry(self, exc, task_id, args, kwargs, einfo):
-            if logger:
-                logger.warn('Retry task[{}] {}[{}] args: {}, kwargs: {}'.format(self.request.retries, self.name, task_id, json.dumps(args), json.dumps(kwargs)), exc_info=einfo)
 
     @shared_task(base=MyTask, bind=True, name=const.TASK_NAME, acks_late=True, reject_on_worker_lost=True,
         ignore_result=True)
@@ -32,5 +27,6 @@ def register_tasks(logger):
             signal = Signal.get_by_name(signal_name)
             signal.send(sender, **kwargs)
         except Exception as exc:
+            logger.warn('Retry task {}[{}: {} from {}] kwargs: {}'.format(self.request.retries, self.name, signal_name, sender, json.dumps(kwargs)))
             countdown = retry_countdown[min(self.request.retries, len(retry_countdown) - 1)]
-            raise self.retry(exc=exc, countdown=countdown, max_retries=20)
+            self.retry(exc=exc, countdown=countdown, max_retries=20)
