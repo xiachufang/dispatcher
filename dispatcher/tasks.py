@@ -1,9 +1,7 @@
 import json
-import sys
 import traceback
 from itertools import chain
 from celery import shared_task, Task
-from celery.exceptions import Retry
 from .dispatcher import Signal
 from . import const
 
@@ -36,20 +34,10 @@ def register_tasks(logger):
     @shared_task(base=MyTask, bind=True, name=const.TASK_NAME, acks_late=True, reject_on_worker_lost=True,
         ignore_result=True)
     def trigger_signal(self, signal_name, sender, finished_receivers=None, **kwargs):
-        try:
-            signal = Signal.get_by_name(signal_name)
-            resp = signal.send_robust(sender, finished_receivers=finished_receivers, **kwargs)
-            new_finished_receivers = [lookup_key for lookup_key, r in resp if not isinstance(r, Exception)]
-            exceptions = [r for lookup_key, r in resp if isinstance(r, Exception)]
-
-            if exceptions:
-                new_finished_receivers.extend(finished_receivers or [])
-                retry(self, signal_name, sender, new_finished_receivers, kwargs, exceptions)
-        except Retry:
-            # self.retry 每次发起重试请求会抛 Retry 异常，如果不捕捉到话，底下捕捉
-            # 到异常，又会发起一次重试，导致一次出错重试两次，然后会越积越多。
-            pass
-        except Exception as exc:
-            if not hasattr(exc, '__traceback__'):
-                exc.__traceback__ = sys.exc_info()[2]
-            retry(self, signal_name, sender, finished_receivers, kwargs, [exc])
+        signal = Signal.get_by_name(signal_name)
+        resp = signal.send_robust(sender, finished_receivers=finished_receivers, **kwargs)
+        new_finished_receivers = [lookup_key for lookup_key, r in resp if not isinstance(r, Exception)]
+        exceptions = [r for lookup_key, r in resp if isinstance(r, Exception)]
+        if exceptions:
+            new_finished_receivers.extend(finished_receivers or [])
+            retry(self, signal_name, sender, new_finished_receivers, kwargs, exceptions)
