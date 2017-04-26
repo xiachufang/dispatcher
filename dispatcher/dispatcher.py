@@ -18,7 +18,10 @@ def func_accepts_kwargs(func):
 def _make_id(target):
     if not inspect.isfunction(target):
         raise Exception("receiver must be function")
-    return ':'.join([inspect.getabsfile(target), target.__name__])
+    custom_name = getattr(target, 'dispatch_uid', '')
+    if custom_name:
+        return custom_name
+    return ':'.join([target.__module__, target.__name__])
 
 
 def _make_lookup_key(receiver, target):
@@ -308,6 +311,9 @@ def receiver(signal, **kwargs):
             ...
     """
     def _decorator(func):
+        if 'dispatch_uid' in kwargs:
+            func.dispatch_uid = kwargs.pop('dispatch_uid')
+
         if isinstance(signal, (list, tuple)):
             for s in signal:
                 s.connect(func, **kwargs)
