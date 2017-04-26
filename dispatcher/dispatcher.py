@@ -215,8 +215,6 @@ class Signal(object):
         if not self.receivers or self.sender_receivers_cache.get(sender) is NO_RECEIVERS:
             return []
 
-        if finished_receivers:
-            finished_receivers = [tuple(d) for d in finished_receivers]
         # Call each receiver with whatever arguments it can accept.
         # Return a list of tuple pairs [(receiver, response), ... ].
         responses = []

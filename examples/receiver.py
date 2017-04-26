@@ -4,7 +4,7 @@ from signals import ORDER_CREATED
 
 @receiver(ORDER_CREATED)
 def order_created(sender, order_id, user_id, shop_id, **kwargs):
-    print 'order_created'
+    print 'order_created_test'
     # print 'before raise'
     # raise ValueError('error')
     # print 'sleep 4'
