@@ -21,6 +21,10 @@ def _make_id(target):
     return ':'.join([inspect.getabsfile(target), target.__name__])
 
 
+def _make_lookup_key(receiver, target):
+    return [_make_id(receiver), target]
+
+
 NONE_ID = None
 
 # A marker for caching
@@ -104,7 +108,7 @@ class Signal(object):
             if not func_accepts_kwargs(receiver):
                 raise ValueError("Signal receivers must accept keyword arguments (**kwargs).")
 
-        lookup_key = (_make_id(receiver), sender)
+        lookup_key = _make_lookup_key(receiver, sender)
 
         if weak:
             ref = weakref.ref
@@ -137,7 +141,7 @@ class Signal(object):
             sender
                 The registered sender to disconnect
         """
-        lookup_key = (_make_id(receiver), sender)
+        lookup_key = _make_lookup_key(receiver, sender)
 
         disconnected = False
         with self.lock:
@@ -180,7 +184,7 @@ class Signal(object):
             return []
 
         return [
-            ((_make_id(receiver), sender), receiver(signal=self, sender=sender, **named))
+            (_make_lookup_key(receiver, sender), receiver(signal=self, sender=sender, **named))
             for receiver in self._live_receivers(sender)
         ]
 
@@ -217,7 +221,7 @@ class Signal(object):
         # Return a list of tuple pairs [(receiver, response), ... ].
         responses = []
         for receiver in self._live_receivers(sender):
-            lookup_key = (_make_id(receiver), sender)
+            lookup_key = _make_lookup_key(receiver, sender)
             # skip finished receivers
             if finished_receivers and lookup_key in finished_receivers:
                 continue
