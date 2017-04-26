@@ -46,6 +46,8 @@ def register_tasks(logger):
                 new_finished_receivers.extend(finished_receivers or [])
                 retry(self, signal_name, sender, new_finished_receivers, kwargs, exceptions)
         except Retry:
+            # self.retry 每次发起重试请求会抛 Retry 异常，如果不捕捉到话，底下捕捉
+            # 到异常，又会发起一次重试，导致一次出错重试两次，然后会越积越多。
             pass
         except Exception as exc:
             if not hasattr(exc, '__traceback__'):
