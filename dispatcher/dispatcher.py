@@ -16,12 +16,19 @@ def func_accepts_kwargs(func):
 
 
 def _make_id(target):
-    if hasattr(target, '__func__'):
-        return (id(target.__self__), id(target.__func__))
-    return id(target)
+    if not inspect.isfunction(target):
+        raise Exception("receiver must be function")
+    custom_name = getattr(target, 'dispatch_uid', '')
+    if custom_name:
+        return custom_name
+    return ':'.join([target.__module__, target.__name__])
 
 
-NONE_ID = _make_id(None)
+def _make_lookup_key(receiver, target):
+    return [_make_id(receiver), target]
+
+
+NONE_ID = None
 
 # A marker for caching
 NO_RECEIVERS = object()
@@ -72,7 +79,7 @@ class Signal(object):
     def get_by_name(cls, name):
         return cls.ALL_SIGNALS.get(name)
 
-    def connect(self, receiver, sender=None, weak=True, dispatch_uid=None):
+    def connect(self, receiver, sender=None, weak=True):
         """
         Connect receiver to sender for signal.
 
@@ -86,10 +93,6 @@ class Signal(object):
 
                 Receivers must be able to accept keyword arguments.
 
-                If a receiver is connected with a dispatch_uid argument, it
-                will not be added if another receiver was already connected
-                with that dispatch_uid.
-
             sender
                 The sender to which the receiver should respond. Must either be
                 a Python object, or None to receive events from any sender.
@@ -99,11 +102,6 @@ class Signal(object):
                 module will attempt to use weak references to the receiver
                 objects. If this parameter is false, then strong references will
                 be used.
-
-            dispatch_uid
-                An identifier used to uniquely identify a particular instance of
-                a receiver. This will usually be a string, though it may be
-                anything hashable.
         """
         # If DEBUG is on, check that we got a good receiver
         if DEBUG:
@@ -113,10 +111,7 @@ class Signal(object):
             if not func_accepts_kwargs(receiver):
                 raise ValueError("Signal receivers must accept keyword arguments (**kwargs).")
 
-        if dispatch_uid:
-            lookup_key = (dispatch_uid, _make_id(sender))
-        else:
-            lookup_key = (_make_id(receiver), _make_id(sender))
+        lookup_key = _make_lookup_key(receiver, sender)
 
         if weak:
             ref = weakref.ref
@@ -129,12 +124,12 @@ class Signal(object):
             self._clear_dead_receivers()
             for r_key, _ in self.receivers:
                 if r_key == lookup_key:
-                    break
+                    raise Exception("Already exisit receiver {}".format(r_key))
             else:
                 self.receivers.append((lookup_key, receiver))
             self.sender_receivers_cache.clear()
 
-    def disconnect(self, receiver=None, sender=None, weak=None, dispatch_uid=None):
+    def disconnect(self, receiver, sender=None, weak=None):
         """
         Disconnect receiver from sender for signal.
 
@@ -144,19 +139,12 @@ class Signal(object):
         Arguments:
 
             receiver
-                The registered receiver to disconnect. May be none if
-                dispatch_uid is specified.
+                The registered receiver to disconnect.
 
             sender
                 The registered sender to disconnect
-
-            dispatch_uid
-                the unique identifier of the receiver to disconnect
         """
-        if dispatch_uid:
-            lookup_key = (dispatch_uid, _make_id(sender))
-        else:
-            lookup_key = (_make_id(receiver), _make_id(sender))
+        lookup_key = _make_lookup_key(receiver, sender)
 
         disconnected = False
         with self.lock:
@@ -199,11 +187,11 @@ class Signal(object):
             return []
 
         return [
-            (receiver, receiver(signal=self, sender=sender, **named))
+            (_make_lookup_key(receiver, sender), receiver(signal=self, sender=sender, **named))
             for receiver in self._live_receivers(sender)
         ]
 
-    def send_robust(self, sender, **named):
+    def send_robust(self, sender, finished_receivers=None, **named):
         """
         Send signal from sender to all connected receivers catching errors.
 
@@ -234,14 +222,19 @@ class Signal(object):
         # Return a list of tuple pairs [(receiver, response), ... ].
         responses = []
         for receiver in self._live_receivers(sender):
+            lookup_key = _make_lookup_key(receiver, sender)
+            # skip finished receivers
+            if finished_receivers and lookup_key in finished_receivers:
+                continue
+
             try:
                 response = receiver(signal=self, sender=sender, **named)
             except Exception as err:
                 if not hasattr(err, '__traceback__'):
                     err.__traceback__ = sys.exc_info()[2]
-                responses.append((receiver, err))
+                responses.append((lookup_key, err))
             else:
-                responses.append((receiver, response))
+                responses.append((lookup_key, response))
         return responses
 
     def _clear_dead_receivers(self):
@@ -272,7 +265,7 @@ class Signal(object):
         if receivers is None:
             with self.lock:
                 self._clear_dead_receivers()
-                senderkey = _make_id(sender)
+                senderkey = sender
                 receivers = []
                 for (receiverkey, r_senderkey), receiver in self.receivers:
                     if r_senderkey == NONE_ID or r_senderkey == senderkey:
@@ -318,6 +311,9 @@ def receiver(signal, **kwargs):
             ...
     """
     def _decorator(func):
+        if 'dispatch_uid' in kwargs:
+            func.dispatch_uid = kwargs.pop('dispatch_uid')
+
         if isinstance(signal, (list, tuple)):
             for s in signal:
                 s.connect(func, **kwargs)
