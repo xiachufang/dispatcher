@@ -16,7 +16,7 @@ def discover_receiver_paths(path, base_path):
         raise Exception('path must startswith base_path')
 
     receiver_paths = set()
-    for dirpath, dirnames, filenames in os.walk(path, followlinks=True):
+    for dirpath, _, filenames in os.walk(path, followlinks=True):
         for filename in filenames:
             if not filename.endswith('receiver.py'):
                 continue

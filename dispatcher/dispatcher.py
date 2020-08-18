@@ -24,7 +24,7 @@ def _make_id(target):
     return ':'.join([target.__module__, target.__name__])
 
 
-def _make_lookup_key(receiver, target):
+def make_lookup_key(receiver, target):
     return [_make_id(receiver), target]
 
 
@@ -111,7 +111,7 @@ class Signal(object):
             if not func_accepts_kwargs(receiver):
                 raise ValueError("Signal receivers must accept keyword arguments (**kwargs).")
 
-        lookup_key = _make_lookup_key(receiver, sender)
+        lookup_key = make_lookup_key(receiver, sender)
 
         if weak:
             ref = weakref.ref
@@ -144,7 +144,7 @@ class Signal(object):
             sender
                 The registered sender to disconnect
         """
-        lookup_key = _make_lookup_key(receiver, sender)
+        lookup_key = make_lookup_key(receiver, sender)
 
         disconnected = False
         with self.lock:
@@ -159,7 +159,7 @@ class Signal(object):
         return disconnected
 
     def has_listeners(self, sender=None):
-        return bool(self._live_receivers(sender))
+        return bool(self.live_receivers(sender))
 
     def send_async(self, sender, options=None, **named):
         options = options or {}
@@ -187,11 +187,11 @@ class Signal(object):
             return []
 
         return [
-            (_make_lookup_key(receiver, sender), receiver(signal=self, sender=sender, **named))
-            for receiver in self._live_receivers(sender)
+            (make_lookup_key(receiver, sender), receiver(signal=self, sender=sender, **named))
+            for receiver in self.live_receivers(sender)
         ]
 
-    def send_robust(self, sender, finished_receivers=None, **named):
+    def send_robust(self, sender, finished_receivers=None, target_receivers=None, **named):
         """
         Send signal from sender to all connected receivers catching errors.
 
@@ -221,10 +221,14 @@ class Signal(object):
         # Call each receiver with whatever arguments it can accept.
         # Return a list of tuple pairs [(receiver, response), ... ].
         responses = []
-        for receiver in self._live_receivers(sender):
-            lookup_key = _make_lookup_key(receiver, sender)
+        for receiver in self.live_receivers(sender):
+            lookup_key = make_lookup_key(receiver, sender)
             # skip finished receivers
             if finished_receivers and lookup_key in finished_receivers:
+                continue
+
+            # skip not target receivers        
+            if target_receivers and lookup_key not in target_receivers:
                 continue
 
             try:
@@ -248,7 +252,7 @@ class Signal(object):
                 new_receivers.append(r)
             self.receivers = new_receivers
 
-    def _live_receivers(self, sender):
+    def live_receivers(self, sender):
         """
         Filter sequence of receivers to get resolved, live receivers.
 
@@ -259,7 +263,7 @@ class Signal(object):
         if self.use_caching and not self._dead_receivers:
             receivers = self.sender_receivers_cache.get(sender)
             # We could end up here with NO_RECEIVERS even if we do check this case in
-            # .send() prior to calling _live_receivers() due to concurrent .send() call.
+            # .send() prior to calling live_receivers() due to concurrent .send() call.
             if receivers is NO_RECEIVERS:
                 return []
         if receivers is None:
@@ -267,7 +271,7 @@ class Signal(object):
                 self._clear_dead_receivers()
                 senderkey = sender
                 receivers = []
-                for (receiverkey, r_senderkey), receiver in self.receivers:
+                for (_, r_senderkey), receiver in self.receivers:
                     if r_senderkey == NONE_ID or r_senderkey == senderkey:
                         receivers.append(receiver)
                 if self.use_caching:
@@ -289,7 +293,7 @@ class Signal(object):
 
     def _remove_receiver(self, receiver=None):
         # Mark that the self.receivers list has dead weakrefs. If so, we will
-        # clean those up in connect, disconnect and _live_receivers while
+        # clean those up in connect, disconnect and live_receivers while
         # holding self.lock. Note that doing the cleanup here isn't a good
         # idea, _remove_receiver() will be called as side effect of garbage
         # collection, and so the call can happen while we are already holding

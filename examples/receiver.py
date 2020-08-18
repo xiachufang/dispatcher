@@ -4,12 +4,12 @@ from signals import ORDER_CREATED
 
 @receiver(ORDER_CREATED, dispatch_uid='order_created')
 def order_created(sender, order_id, user_id, shop_id, **kwargs):
-    print 'order_created_test'
+    print('order_created_test')
 
 
 @receiver(ORDER_CREATED)
 def order_created4(sender, order_id, user_id, shop_id, **kwargs):
-    print 'order_created_test 4'
+    print('order_created_test 4')
 
 
 @receiver(ORDER_CREATED, dispatch_uid='order_created2')
