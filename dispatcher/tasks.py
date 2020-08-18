@@ -4,7 +4,7 @@ from itertools import chain
 from celery import shared_task, Task
 from .dispatcher import Signal, make_lookup_key
 from . import const
-from celery.execute import send_task
+from celery.execute import send_task  # pylint: disable=import-error,no-name-in-module
 
 
 def set_task_name(name):

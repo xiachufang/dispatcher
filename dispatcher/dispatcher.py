@@ -2,7 +2,7 @@ import sys
 import threading
 import weakref
 import inspect
-from celery.execute import send_task
+from celery.execute import send_task   # pylint: disable=import-error,no-name-in-module
 
 from .weakref_backports import WeakMethod
 from . import const
