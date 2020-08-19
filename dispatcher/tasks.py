@@ -16,7 +16,7 @@ def get_task_name():
 
 
 def set_receiver_task_name(name):
-    const.TASK_NAME = name
+    const.RECEIVER_TASK_NAME = name
 
 
 def get_receiver_task_name():
