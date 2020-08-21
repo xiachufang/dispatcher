@@ -52,13 +52,24 @@ def register_tasks(logger):
 
     @shared_task(base=MyTask, bind=True, name=const.TASK_NAME, acks_late=True, reject_on_worker_lost=True,
         ignore_result=True)
-    def trigger_signal(self, signal_name, sender, **kwargs):
+    def trigger_signal(self, signal_name, sender, finished_receivers=None, **kwargs):
         signal: Signal = Signal.get_by_name(signal_name)
+        new_finished_receivers = []
+        exceptions = []
         for receiver in signal.live_receivers(sender):
-            lookup_key = make_lookup_key(receiver, sender)
-            target_receivers = [lookup_key]
-            named = {
-                "target_receivers": target_receivers
-            }
-            named.update(kwargs)
-            send_task(const.RECEIVER_TASK_NAME, args=(signal_name, sender), kwargs=named)
+            try:
+                lookup_key = make_lookup_key(receiver, sender)
+                if lookup_key in finished_receivers:
+                    continue
+                target_receivers = [lookup_key]
+                named = {
+                    "target_receivers": target_receivers
+                }
+                named.update(kwargs)
+                send_task(const.RECEIVER_TASK_NAME, args=(signal_name, sender), kwargs=named)
+                new_finished_receivers.append(lookup_key)
+            except Exception as e:
+                exceptions.append(e)
+        if exceptions:
+            new_finished_receivers.extend(finished_receivers or [])
+            retry(self, signal_name, sender, new_finished_receivers, kwargs, exceptions)
