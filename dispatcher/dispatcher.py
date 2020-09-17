@@ -191,7 +191,27 @@ class Signal(object):
             for receiver in self._live_receivers(sender)
         ]
 
-    def send_robust(self, sender, finished_receivers=None, target_receivers=None, **named):
+    def send_to_target_receiver(self, sender, receiver_key, **named):
+        """
+        Send signal from sender to target receiver catching error.
+        return (receiver_key, response)
+        """
+        for receiver in self._live_receivers(sender):
+            lookup_key = _make_lookup_key(receiver, sender)
+            if lookup_key == receiver_key:
+                try:
+                    response = receiver(signal=self, sender=sender, **named)
+                except Exception as err:
+                    if not hasattr(err, '__traceback__'):
+                        err.__traceback__ = sys.exc_info()[2]
+                    return (lookup_key, err)
+                else:
+                    return (lookup_key, response)
+                break
+        return None
+
+
+    def send_robust(self, sender, finished_receivers=None, **named):
         """
         Send signal from sender to all connected receivers catching errors.
 
@@ -225,10 +245,6 @@ class Signal(object):
             lookup_key = _make_lookup_key(receiver, sender)
             # skip finished receivers
             if finished_receivers and lookup_key in finished_receivers:
-                continue
-
-            # skip not target receivers        
-            if target_receivers and lookup_key not in target_receivers:
                 continue
 
             try:

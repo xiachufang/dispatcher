@@ -44,10 +44,9 @@ def register_tasks(logger):
     @shared_task(base=MyTask, bind=True, name=const.RECEIVER_TASK_NAME, acks_late=True, reject_on_worder_lost=True, ignore_result=True)
     def execute_signal_receiver(self, signal_name, sender, target_receiver=None, **kwargs):  # noqa
         signal = Signal.get_by_name(signal_name)
-        resp = signal.send_robust(sender, target_receivers=[target_receiver], **kwargs)
-        exceptions = [r for lookup_key, r in resp if isinstance(r, Exception)]
-        if exceptions:
-            retry(self, signal_name, sender, kwargs, exceptions)
+        res_receiver_key, r = signal.send_to_target_receiver(sender, target_receiver, **kwargs)
+        if isinstance(r, Exception):
+            retry(self, signal_name, sender, kwargs, [r])
 
     @shared_task(base=MyTask, bind=True, name=const.TASK_NAME, acks_late=True, reject_on_worker_lost=True,
         ignore_result=True)
