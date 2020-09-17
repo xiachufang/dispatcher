@@ -43,8 +43,13 @@ def register_tasks(logger):
 
     @shared_task(base=MyTask, bind=True, name=const.RECEIVER_TASK_NAME, acks_late=True, reject_on_worder_lost=True, ignore_result=True)
     def execute_signal_receiver(self, signal_name, sender, target_receiver=None, **kwargs):  # noqa
+        if not target_receiver:
+            return
         signal = Signal.get_by_name(signal_name)
-        res_receiver_key, r = signal.send_to_target_receiver(sender, target_receiver, **kwargs)
+        resp = signal.send_to_target_receiver(sender, target_receiver, **kwargs)
+        if not resp:
+            return
+        res_receiver_key, r = resp
         if isinstance(r, Exception):
             retry(self, signal_name, sender, kwargs, [r])
 
