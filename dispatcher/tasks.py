@@ -2,7 +2,7 @@ import json
 import traceback
 from itertools import chain
 from celery import shared_task, Task
-from .dispatcher import Signal, make_lookup_key
+from .dispatcher import Signal
 from . import const
 from celery.execute import send_task  # pylint: disable=import-error,no-name-in-module
 
@@ -31,45 +31,43 @@ def register_tasks(logger):
             if logger:
                 logger.error('Task {}[{}] args: {}, kwargs: {}'.format(self.name, task_id, json.dumps(args), json.dumps(kwargs)))
 
-    def retry(self, signal_name, sender, finished_receivers, kwargs, exceptions):
+    def retry(self, signal_name, sender, kwargs, exceptions, finished_receivers=None):
         tb = ''.join(chain(*[traceback.format_exception(exc.__class__, exc, exc.__traceback__) for exc in exceptions]))
         logger.warn('Retry task {}[{}: {} from {}] finished_receivers: {}, kwargs: {}\n{}'.format(
             self.request.retries, self.name, signal_name, sender, finished_receivers, json.dumps(kwargs), tb))
         countdown = retry_countdown[min(self.request.retries, len(retry_countdown) - 1)]
         new_kwargs = self.request.kwargs
-        new_kwargs['finished_receivers'] = finished_receivers
+        if finished_receivers:
+            new_kwargs['finished_receivers'] = finished_receivers
         self.retry(kwargs=new_kwargs, exc=exceptions[0], countdown=countdown, max_retries=20)
 
     @shared_task(base=MyTask, bind=True, name=const.RECEIVER_TASK_NAME, acks_late=True, reject_on_worder_lost=True, ignore_result=True)
-    def execute_signal_receivers(self, signal_name, sender, finished_receivers=None, target_receivers=None, **kwargs):  # noqa
+    def execute_signal_receiver(self, signal_name, sender, target_receiver=None, **kwargs):  # noqa
         signal = Signal.get_by_name(signal_name)
-        resp = signal.send_robust(sender, finished_receivers=finished_receivers, target_receivers=target_receivers, **kwargs)
-        new_finished_receivers = [lookup_key for lookup_key, r in resp if not isinstance(r, Exception)]
+        resp = signal.send_robust(sender, target_receivers=[target_receiver], **kwargs)
         exceptions = [r for lookup_key, r in resp if isinstance(r, Exception)]
         if exceptions:
-            new_finished_receivers.extend(finished_receivers or [])
-            retry(self, signal_name, sender, new_finished_receivers, kwargs, exceptions)
+            retry(self, signal_name, sender, kwargs, exceptions)
 
     @shared_task(base=MyTask, bind=True, name=const.TASK_NAME, acks_late=True, reject_on_worker_lost=True,
         ignore_result=True)
     def trigger_signal(self, signal_name, sender, finished_receivers=None, **kwargs):
         signal: Signal = Signal.get_by_name(signal_name)
+        finished_receivers = finished_receivers or []
         new_finished_receivers = []
         exceptions = []
-        for receiver in signal.live_receivers(sender):
+        for receiver_key in signal.live_receiver_keys(sender):
             try:
-                lookup_key = make_lookup_key(receiver, sender)
-                if lookup_key in finished_receivers:
+                if receiver_key in finished_receivers:
                     continue
-                target_receivers = [lookup_key]
                 named = {
-                    "target_receivers": target_receivers
+                    "target_receiver": receiver_key
                 }
                 named.update(kwargs)
                 send_task(const.RECEIVER_TASK_NAME, args=(signal_name, sender), kwargs=named)
-                new_finished_receivers.append(lookup_key)
+                new_finished_receivers.append(receiver_key)
             except Exception as e:
                 exceptions.append(e)
         if exceptions:
             new_finished_receivers.extend(finished_receivers or [])
-            retry(self, signal_name, sender, new_finished_receivers, kwargs, exceptions)
+            retry(self, signal_name, sender, kwargs, exceptions, finished_receivers=new_finished_receivers)
