@@ -2,7 +2,7 @@ import sys
 import threading
 import weakref
 import inspect
-from celery.execute import send_task
+from celery.execute import send_task   # pylint: disable=import-error,no-name-in-module
 
 from .weakref_backports import WeakMethod
 from . import const
@@ -191,6 +191,26 @@ class Signal(object):
             for receiver in self._live_receivers(sender)
         ]
 
+    def send_to_target_receiver(self, sender, receiver_key, **named):
+        """
+        Send signal from sender to target receiver catching error.
+        return (receiver_key, response)
+        """
+        for receiver in self._live_receivers(sender):
+            lookup_key = _make_lookup_key(receiver, sender)
+            if lookup_key == receiver_key:
+                try:
+                    response = receiver(signal=self, sender=sender, **named)
+                except Exception as err:
+                    if not hasattr(err, '__traceback__'):
+                        err.__traceback__ = sys.exc_info()[2]
+                    return (lookup_key, err)
+                else:
+                    return (lookup_key, response)
+                break
+        return None
+
+
     def send_robust(self, sender, finished_receivers=None, **named):
         """
         Send signal from sender to all connected receivers catching errors.
@@ -248,6 +268,13 @@ class Signal(object):
                 new_receivers.append(r)
             self.receivers = new_receivers
 
+    def live_receiver_keys(self, sender):
+        keys = []
+        for receiver in self._live_receivers(sender):
+            lookup_key = _make_lookup_key(receiver, sender)
+            keys.append(lookup_key)
+        return keys
+
     def _live_receivers(self, sender):
         """
         Filter sequence of receivers to get resolved, live receivers.
@@ -267,7 +294,7 @@ class Signal(object):
                 self._clear_dead_receivers()
                 senderkey = sender
                 receivers = []
-                for (receiverkey, r_senderkey), receiver in self.receivers:
+                for (_, r_senderkey), receiver in self.receivers:
                     if r_senderkey == NONE_ID or r_senderkey == senderkey:
                         receivers.append(receiver)
                 if self.use_caching:
