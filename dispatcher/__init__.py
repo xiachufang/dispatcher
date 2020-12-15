@@ -5,7 +5,7 @@ See license.txt for original license.
 Heavily modified for Django's purposes.
 """
 
-from .dispatcher import Signal, receiver  # NOQA
+from .dispatcher import Signal, receiver, sync_receiver  # NOQA
 from .tasks import register_tasks, set_task_name, get_task_name   # NOQA
 from .discover import discover_receivers  # NOQA
 

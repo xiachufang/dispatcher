@@ -74,10 +74,16 @@ class Signal(object):
         # .disconnect() is called and populated on send().
         self.sender_receivers_cache = weakref.WeakKeyDictionary() if use_caching else {}
         self._dead_receivers = False
+        self._local_task_func = []
 
     @classmethod
     def get_by_name(cls, name):
         return cls.ALL_SIGNALS.get(name)
+
+    def add_local_task_func(self, func):
+        if func in self._local_task_func:
+            raise Exception("Already exisit sync receiver {}".format(func.__name__))
+        self._local_task_func.append(func)
 
     def connect(self, receiver, sender=None, weak=True):
         """
@@ -158,12 +164,19 @@ class Signal(object):
             self.sender_receivers_cache.clear()
         return disconnected
 
+    def local_reg_func(self, reciver):
+        self._local_task_func[self.name].append(reciver)
+
     def has_listeners(self, sender=None):
         return bool(self._live_receivers(sender))
 
     def send_async(self, sender, options=None, **named):
         options = options or {}
         send_task(const.TASK_NAME, args=(self.name, sender), kwargs=named, **options)
+
+    def send_sync(self, **named):
+        for func in self._local_task_func:
+            func(**named)
 
     def send(self, sender, **named):
         """
@@ -346,5 +359,17 @@ def receiver(signal, **kwargs):
                 s.connect(func, **kwargs)
         else:
             signal.connect(func, **kwargs)
+        return func
+    return _decorator
+
+
+def sync_receiver(signal, **kwargs):
+    #  会马上执行的receiver
+    def _decorator(func):
+        if isinstance(signal, (list, tuple)):
+            for s in signal:
+                s.add_local_task_func(func)
+        else:
+            signal.add_local_task_func(func)
         return func
     return _decorator
