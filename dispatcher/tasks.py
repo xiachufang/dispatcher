@@ -24,7 +24,7 @@ def get_receiver_task_name():
 
 
 def register_tasks(logger):
-    retry_countdown = (0, 2, 4, 6, 8, 10, 20, 40, 60, 60*2, 60*5, 60*10, 60*30, 60*60)
+    retry_countdown = (1, 2, 4, 6, 8, 10, 20, 40, 60, 60*2, 60*5, 60*10, 60*30, 60*60)
 
     class MyTask(Task):
         def on_failure(self, exc, task_id, args, kwargs, einfo):

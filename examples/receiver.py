@@ -1,5 +1,6 @@
-from dispatcher import receiver
-from signals import ORDER_CREATED
+from dispatcher import receiver, sync_receiver
+from signals import ORDER_CREATED, SIGNAL_A, SIGNAL_B
+
 
 
 @receiver(ORDER_CREATED, dispatch_uid='order_created')
@@ -26,3 +27,13 @@ def order_created3(sender, order_id, user_id, shop_id, **kwargs):
     # print('sleep 4')
     # import time
     # time.sleep(10)
+
+
+@sync_receiver(SIGNAL_A)
+def sync_a(order_id, user_id, **kwargs):
+    print('sync call')
+
+
+@sync_receiver([SIGNAL_A, SIGNAL_B])
+def sync_a(order_id, user_id, **kwargs):
+    print('sync_call_ab')
