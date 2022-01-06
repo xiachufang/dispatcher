@@ -10,8 +10,8 @@ from .tasks import register_tasks, set_task_name, get_task_name   # NOQA
 from .discover import discover_receivers  # NOQA
 
 
-def init_dispatcher(path, base_path, logger=None, task_name=None):
+def init_dispatcher(path, base_path, logger=None, task_name=None, hook=None):
     if task_name:
         set_task_name(task_name)
-    register_tasks(logger)
+    register_tasks(logger, hook)
     discover_receivers(path, base_path)

@@ -23,7 +23,7 @@ def get_receiver_task_name():
     return const.RECEIVER_TASK_NAME
 
 
-def register_tasks(logger):
+def register_tasks(logger, hook):
     retry_countdown = (0, 2, 4, 6, 8, 10, 20, 40, 60, 60*2, 60*5, 60*10, 60*30, 60*60)
 
     class MyTask(Task):
@@ -40,6 +40,8 @@ def register_tasks(logger):
         if finished_receivers:
             new_kwargs['finished_receivers'] = finished_receivers
         self.retry(kwargs=new_kwargs, exc=exceptions[0], countdown=countdown, max_retries=20)
+        if hook is not None:
+            hook.on_task_retry(signal_name, sender)
 
     @shared_task(base=MyTask, bind=True, name=const.RECEIVER_TASK_NAME, acks_late=True, reject_on_worder_lost=True, ignore_result=True)
     def execute_signal_receiver(self, signal_name, sender, target_receiver=None, **kwargs):  # noqa
@@ -52,6 +54,13 @@ def register_tasks(logger):
         res_receiver_key, r = resp
         if isinstance(r, Exception):
             retry(self, signal_name, sender, kwargs, [r])
+
+        if hook is not None:
+            hook.on_task_execute_signal_receiver(signal_name, sender, target_receiver)
+            if isinstance(r, Exception):
+                hook.on_task_execute_signal_receiver_error(signal_name, sender, target_receiver)
+            else:
+                hook.on_task_execute_signal_receiver_success(signal_name, sender, target_receiver)
 
     @shared_task(base=MyTask, bind=True, name=const.TASK_NAME, acks_late=True, reject_on_worker_lost=True,
         ignore_result=True)
@@ -75,3 +84,6 @@ def register_tasks(logger):
         if exceptions:
             new_finished_receivers.extend(finished_receivers or [])
             retry(self, signal_name, sender, kwargs, exceptions, finished_receivers=new_finished_receivers)
+
+        if hook is not None:
+            hook.on_task_trigger_signal(signal_name, sender)
