@@ -47,16 +47,21 @@ def register_tasks(logger, hook):
     def execute_signal_receiver(self, signal_name, sender, target_receiver=None, **kwargs):  # noqa
         if not target_receiver:
             return
+        if hook is not None:
+            hook.on_task_execute_signal_receiver(signal_name, sender, target_receiver)
+
         signal = Signal.get_by_name(signal_name)
         resp = signal.send_to_target_receiver(sender, target_receiver, **kwargs)
         if not resp:
+            if hook is not None:
+                hook.on_task_miss_target_receiver(signal_name, sender, target_receiver)
             return
+
         res_receiver_key, r = resp
         if isinstance(r, Exception):
             retry(self, signal_name, sender, kwargs, [r])
 
         if hook is not None:
-            hook.on_task_execute_signal_receiver(signal_name, sender, target_receiver)
             if isinstance(r, Exception):
                 hook.on_task_execute_signal_receiver_error(signal_name, sender, target_receiver)
             else:
@@ -86,4 +91,4 @@ def register_tasks(logger, hook):
             retry(self, signal_name, sender, kwargs, exceptions, finished_receivers=new_finished_receivers)
 
         if hook is not None:
-            hook.on_task_trigger_signal(signal_name, sender)
+            hook.on_task_trigger_signal(signal_name, sender, len(exceptions))
