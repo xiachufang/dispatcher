@@ -12,6 +12,7 @@ setup(
     url='https://github.com/xiachufang/dispatcher',
     install_requires=[
         'celery',
+        'simplejson',
     ],
     classifiers=[
         "Development Status :: 4 - Beta",

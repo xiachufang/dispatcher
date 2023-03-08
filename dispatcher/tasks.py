@@ -1,4 +1,4 @@
-import json
+import simplejson
 import traceback
 from itertools import chain
 from celery import shared_task, Task
@@ -29,12 +29,18 @@ def register_tasks(logger, hook):
     class MyTask(Task):
         def on_failure(self, exc, task_id, args, kwargs, einfo):
             if logger:
-                logger.error('Task {}[{}] args: {}, kwargs: {}'.format(self.name, task_id, json.dumps(args), json.dumps(kwargs)))
+                try:
+                    logger.error('Task {}[{}] args: {}, kwargs: {}'.format(self.name, task_id, simplejson.dumps(args, iterable_as_array=True), simplejson.dumps(kwargs, iterable_as_array=True)))
+                except Exception:
+                    pass
 
     def retry(self, signal_name, sender, kwargs, exceptions, finished_receivers=None):
         tb = ''.join(chain(*[traceback.format_exception(exc.__class__, exc, exc.__traceback__) for exc in exceptions]))
-        logger.warn('Retry task {}[{}: {} from {}] finished_receivers: {}, kwargs: {}\n{}'.format(
-            self.request.retries, self.name, signal_name, sender, finished_receivers, json.dumps(kwargs), tb))
+        try:
+            logger.warn('Retry task {}[{}: {} from {}] finished_receivers: {}, kwargs: {}\n{}'.format(
+                self.request.retries, self.name, signal_name, sender, finished_receivers, simplejson.dumps(kwargs, iterable_as_array=True), tb))
+        except Exception:
+            pass
         countdown = retry_countdown[min(self.request.retries, len(retry_countdown) - 1)]
         new_kwargs = self.request.kwargs
         if finished_receivers:
